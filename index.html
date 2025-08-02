@@ -3,29 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador con Tesseract.js</title>
+    <title>Analizador con Azure AI Vision</title>
     <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
-    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
-
     <style>
-        /* (Tus estilos CSS se mantienen igual) */
         body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 10px; box-sizing: border-box; background-color: #f0f0f0; text-align: center; }
         h1 { margin-bottom: 15px; }
         #video { width: 100%; max-width: 600px; height: auto; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 5px solid #ccc; transition: border-color 0.3s; }
-        button { margin-top: 20px; padding: 15px 30px; font-size: 18px; font-weight: bold; color: white; background-color: #007bff; border: none; border-radius: 8px; cursor: pointer; width: 90%; max-width: 400px; }
+        button { margin-top: 20px; padding: 15px 30px; font-size: 18px; font-weight: bold; color: white; background-color: #0078D4; border: none; border-radius: 8px; cursor: pointer; width: 90%; max-width: 400px; }
         #result { margin-top: 15px; font-size: 20px; font-weight: 500; min-height: 30px; }
-        #codeResult { margin-top: 20px; font-size: 18px; font-weight: bold; color: #333; word-break: break-word; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background-color: #fff; min-height: 24px; }
+        #codeResult { margin-top: 20px; font-size: 18px; font-weight: bold; color: #333; word-break: break-word; white-space: pre-wrap; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background-color: #fff; min-height: 24px; }
     </style>
 </head>
 <body>
-
-    <h1>📸 Analizador de Nitidez con Tesseract.js</h1>
+    <h1>📸 Analizador de Nitidez con Azure</h1>
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas" style="display:none;"></canvas>
     <button id="analyzeButton" disabled>Cargando...</button>
     <p id="result">Apunta la cámara y presiona el botón.</p>
     <div id="codeResult"></div>
-
     <script src="main.js"></script>
 </body>
 </html>

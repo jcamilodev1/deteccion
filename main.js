@@ -100,35 +100,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Llama a Tesseract.js para realizar el OCR directamente en el navegador.
+     * Envía la imagen capturada al backend (que se ejecuta como una Serverless Function en Vercel)
+     * para que la analice un servicio de OCR como Azure o Google Vision.
      */
     async function enviarParaAnalisis() {
-        codeResultElement.textContent = 'Analizando con Tesseract.js...';
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        codeResultElement.textContent = 'Enviando a servidor...';
 
         try {
-            // Tesseract.recognize() toma la imagen del canvas y el idioma
-            const { data: { text } } = await Tesseract.recognize(
-                canvas,
-                'spa', // 'spa' para español, 'eng' para inglés
-                {
-                    logger: m => {
-                        console.log(m); // Muestra el progreso en la consola
-                        if (m.status === 'recognizing text') {
-                           codeResultElement.textContent = `Analizando... ${Math.round(m.progress * 100)}%`;
-                        }
-                    }
-                }
-            );
+            // Hacemos la petición a nuestra API serverless local. Vercel la redirigirá correctamente.
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ image: dataUrl }),
+            });
 
-            if (text) {
-                codeResultElement.textContent = `Texto Extraído: ${text}`;
-            } else {
-                codeResultElement.textContent = 'No se encontró texto.';
+            if (!response.ok) {
+                throw new Error('Error en la respuesta del servidor');
             }
 
+            const result = await response.json();
+            codeResultElement.textContent = result.text ? `Texto Extraído:\n${result.text}` : 'No se encontró texto.';
         } catch (error) {
-            console.error('Error en Tesseract.js:', error);
-            codeResultElement.textContent = 'Error durante el análisis OCR.';
+            console.error('Error al enviar la imagen para análisis:', error);
+            codeResultElement.textContent = 'Error al contactar el servidor.';
         }
     }
 
