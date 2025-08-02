@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let analysisInterval = null;
     let photoTaken = false;
 
+    /**
+     * Inicia la aplicación, pide acceso a la cámara y configura el botón de análisis.
+     */
     function startApp() {
         analyzeButton.disabled = false;
         analyzeButton.textContent = 'Iniciar Análisis en Tiempo Real';
@@ -42,8 +45,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    /**
+     * Analiza el frame actual del video para determinar su nitidez.
+     * Si es nítido, llama a la función de reconocimiento de texto.
+     */
     function analyzeAndHandleSharpness() {
-        if (video.readyState < 2) return;
+        if (video.readyState < 2) return; // Espera a que el video esté listo
 
         const aspectRatio = video.videoHeight / video.videoWidth;
         canvas.width = ANALYSIS_WIDTH;
@@ -64,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cv.meanStdDev(matLaplacian, mean, stdDev);
             let variance = stdDev.data64F[0] * stdDev.data64F[0];
 
-            const sharpnessThreshold = 150;
+            const sharpnessThreshold = 200;
             resultElement.textContent = `Puntaje de nitidez: ${variance.toFixed(2)}`;
 
             if (variance > sharpnessThreshold) {
@@ -85,55 +92,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 codeResultElement.textContent = '';
             }
 
+            // Liberar memoria de OpenCV
             src.delete(); matGray.delete(); matLaplacian.delete(); mean.delete(); stdDev.delete();
         } catch (error) {
-            console.error("Error en OpenCV:", error);
+            console.error("Error en el análisis de OpenCV:", error);
         }
     }
 
+    /**
+     * Llama a Tesseract.js para realizar el OCR directamente en el navegador.
+     */
     async function enviarParaAnalisis() {
-        // ===================================================================
-        // ==  Pega la Clave de API que creaste en la Consola de Google Cloud ==
-        // ==  (NO uses el contenido del archivo JSON)                      ==
-        // ===================================================================
-        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw';
-        // ===================================================================
-
-        const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
-        const base64ImageData = canvas.toDataURL('image/jpeg').split(',')[1];
-        const requestBody = {
-            requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ],
-        };
-
-        codeResultElement.textContent = 'Enviando a Google Vision...';
+        codeResultElement.textContent = 'Analizando con Tesseract.js...';
 
         try {
-            const response = await fetch(GOOGLE_VISION_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody),
-            });
+            // Tesseract.recognize() toma la imagen del canvas y el idioma
+            const { data: { text } } = await Tesseract.recognize(
+                canvas,
+                'spa', // 'spa' para español, 'eng' para inglés
+                {
+                    logger: m => {
+                        console.log(m); // Muestra el progreso en la consola
+                        if (m.status === 'recognizing text') {
+                           codeResultElement.textContent = `Analizando... ${Math.round(m.progress * 100)}%`;
+                        }
+                    }
+                }
+            );
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Error de Google: ${errorData.error.message}`);
-            }
-
-            const result = await response.json();
-            const detections = result.responses[0].textAnnotations;
-
-            if (detections && detections.length > 0) {
-                codeResultElement.textContent = `Código Extraído: ${detections[0].description}`;
+            if (text) {
+                codeResultElement.textContent = `Texto Extraído: ${text}`;
             } else {
-                codeResultElement.textContent = 'No se encontró texto en la imagen.';
+                codeResultElement.textContent = 'No se encontró texto.';
             }
 
         } catch (error) {
-            console.error('Error al llamar a Google Vision API:', error);
-            codeResultElement.textContent = `Error: ${error.message}`;
+            console.error('Error en Tesseract.js:', error);
+            codeResultElement.textContent = 'Error durante el análisis OCR.';
         }
     }
 
+    /**
+     * Bucle que verifica si la librería de OpenCV está lista antes de iniciar la app.
+     */
     const checkOpenCv = setInterval(() => {
         if (window.cv && window.cv.Mat) {
             console.log('OpenCV.js está listo.');
