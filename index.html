@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador de Nitidez Móvil</title>
+    <title>Analizador de Nitidez Móvil con Google Vision (PRUEBAS)</title>
     <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
     <style>
         /* ESTILOS PARA UNA MEJOR EXPERIENCIA MÓVIL */
@@ -53,16 +53,28 @@
             font-weight: 500;
             min-height: 30px; /* Evita que la página salte al cambiar el texto */
         }
+        #codeResult {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            word-break: break-word;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+            min-height: 24px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>📸 Analizador de Nitidez</h1>
+    <h1>📸 Analizador de Nitidez con OCR (PRUEBAS)</h1>
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas" style="display:none;"></canvas>
     <button id="analyzeButton" disabled>Cargando...</button>
-    <button id="saveButton" disabled style="background-color: #28a745; margin-top: 10px;">📷 Guardar Foto</button>
     <p id="result">Apunta la cámara y presiona el botón.</p>
+    <div id="codeResult"></div>
 
     <script src="main.js"></script>
 </body>
