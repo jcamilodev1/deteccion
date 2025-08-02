@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizador de Nitidez Móvil</title>
+    <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+    <style>
+        /* ESTILOS PARA UNA MEJOR EXPERIENCIA MÓVIL */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            box-sizing: border-box;
+            background-color: #f0f0f0;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 15px;
+        }
+        #video {
+            /* Hacer el video flexible */
+            width: 100%;
+            max-width: 600px; /* Un límite para pantallas más grandes */
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            /* Borde inicial que cambiará de color */
+            border: 5px solid #ccc;
+            transition: border-color 0.3s;
+        }
+        button {
+            margin-top: 20px;
+            padding: 15px 30px; /* Botón más grande para tocar */
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            background-color: #007bff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 90%;
+            max-width: 400px;
+        }
+        #result {
+            margin-top: 15px;
+            font-size: 20px;
+            font-weight: 500;
+            min-height: 30px; /* Evita que la página salte al cambiar el texto */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📸 Analizador de Nitidez</h1>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <button id="analyzeButton" disabled>Cargando...</button>
+    <p id="result">Apunta la cámara y presiona el botón.</p>
+
+    <script src="main.js"></script>
+</body>
+</html>
