@@ -3,13 +3,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const ANALYSIS_WIDTH = 320;
 
     const analyzeButton = document.getElementById('analyzeButton');
+    const saveButton = document.getElementById('saveButton');
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const resultElement = document.getElementById('result');
 
     // --- Variables de estado para el análisis en tiempo real ---
     let analysisInterval = null; // Guardará el ID de nuestro bucle setInterval
-    let photoTaken = false;      // Bandera para evitar tomar fotos repetidas
+    let isImageSharp = false;    // Bandera para saber si la imagen actual es nítida
 
     function startApp() {
         analyzeButton.disabled = false;
@@ -36,11 +37,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 analyzeButton.textContent = 'Iniciar Análisis en Tiempo Real';
                 video.style.borderColor = '#ccc'; // Restaura el borde
                 resultElement.textContent = 'Análisis detenido.';
+                saveButton.disabled = true; // Deshabilitar botón de guardar
             } else {
                 // Si el análisis está detenido, lo iniciamos
                 analyzeButton.textContent = 'Detener Análisis';
                 // El bucle se ejecutará aproximadamente 2 veces por segundo
                 analysisInterval = setInterval(analyzeAndHandleSharpness, 500);
+            }
+        });
+
+        // --- Event listener para el botón de guardar ---
+        saveButton.addEventListener('click', () => {
+            if (isImageSharp) {
+                guardarFoto();
+                resultElement.textContent += ' 📷 ¡Foto guardada!';
             }
         });
 
@@ -73,21 +83,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (variance > sharpnessThreshold) {
                     video.style.borderColor = 'green';
                     resultElement.style.color = 'green';
+                    resultElement.textContent += ' (✅ Nítida - Listo para guardar)';
                     
-                    // --- Lógica para tomar UNA SOLA FOTO ---
-                    if (!photoTaken) {
-                        resultElement.textContent += ' (✅ Nítida - Foto Guardada)';
-                        guardarFoto();
-                        photoTaken = true; // Marcamos que ya tomamos la foto
-                    } else {
-                        resultElement.textContent += ' (✅ Nítida)';
-                    }
+                    // Habilitar el botón de guardar cuando la imagen es nítida
+                    isImageSharp = true;
+                    saveButton.disabled = false;
 
                 } else {
                     video.style.borderColor = 'red';
                     resultElement.style.color = 'red';
                     resultElement.textContent += ' (❌ Borrosa)';
-                    photoTaken = false; // Se resetea para poder tomar otra foto cuando vuelva a ser nítida
+                    
+                    // Deshabilitar el botón de guardar cuando la imagen es borrosa
+                    isImageSharp = false;
+                    saveButton.disabled = true;
                 }
 
                 // Liberar memoria
