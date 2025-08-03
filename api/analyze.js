@@ -18,8 +18,8 @@ module.exports = async (req, res) => {
 
     try {
         // 2. Leer las variables de entorno de forma segura desde Vercel
-        const AZURE_ENDPOINT = 'https://prueba150.cognitiveservices.azure.com/';
-        const AZURE_KEY = 'EstuQZXkTw6kD3En3GLfhsd8JUmLRP4Wewbhgb92ua3HuMeGHW0DJQQJ99BHACYeBjFXJ3w3AAAFACOGVqt2';
+const AZURE_ENDPOINT = 'https://prueba150.cognitiveservices.azure.com/';
+const AZURE_KEY = 'EstuQZXkTw6kD3En3GLfhsd8JUmLRP4Wewbhgb92ua3HuMeGHW0DJQQJ99BHACYeBjFXJ3w3AAAFACOGVqt2';
 
         if (!AZURE_KEY || !AZURE_ENDPOINT) {
             throw new Error('Las variables de entorno de Azure no están configuradas en Vercel.');

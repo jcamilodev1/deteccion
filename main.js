@@ -11,9 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let analysisInterval = null;
     let photoTaken = false;
 
-    /**
-     * Inicia la aplicación, pide acceso a la cámara y configura el botón de análisis.
-     */
     function startApp() {
         analyzeButton.disabled = false;
         analyzeButton.textContent = 'Iniciar Análisis en Tiempo Real';
@@ -45,12 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Analiza el frame actual del video para determinar su nitidez.
-     * Si es nítido, llama a la función de reconocimiento de texto.
-     */
     function analyzeAndHandleSharpness() {
-        if (video.readyState < 2) return; // Espera a que el video esté listo
+        if (video.readyState < 2) return;
 
         const aspectRatio = video.videoHeight / video.videoWidth;
         canvas.width = ANALYSIS_WIDTH;
@@ -71,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cv.meanStdDev(matLaplacian, mean, stdDev);
             let variance = stdDev.data64F[0] * stdDev.data64F[0];
 
-            const sharpnessThreshold = 200;
+            const sharpnessThreshold = 150;
             resultElement.textContent = `Puntaje de nitidez: ${variance.toFixed(2)}`;
 
             if (variance > sharpnessThreshold) {
@@ -92,46 +85,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 codeResultElement.textContent = '';
             }
 
-            // Liberar memoria de OpenCV
             src.delete(); matGray.delete(); matLaplacian.delete(); mean.delete(); stdDev.delete();
         } catch (error) {
-            console.error("Error en el análisis de OpenCV:", error);
+            console.error("Error en OpenCV:", error);
         }
     }
 
-    /**
-     * Envía la imagen capturada al backend (que se ejecuta como una Serverless Function en Vercel)
-     * para que la analice un servicio de OCR como Azure o Google Vision.
-     */
     async function enviarParaAnalisis() {
-        const dataUrl = canvas.toDataURL('image/jpeg');
-        codeResultElement.textContent = 'Enviando a servidor...';
+        // ===================================================================
+        // ==  Pega la Clave de API que creaste en la Consola de Google Cloud ==
+        // ==  (NO uses el contendo del archivo JSON)                      ==
+        // ===================================================================
+        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw';
+        // ===================================================================
+
+        const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
+        const base64ImageData = canvas.toDataURL('image/jpeg').split(',')[1];
+        const requestBody = {
+            requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ],
+        };
+
+        codeResultElement.textContent = 'Enviando a Google Vision...';
 
         try {
-            // Hacemos la petición a nuestra API serverless local. Vercel la redirigirá correctamente.
-            const response = await fetch('/api/analyze', {
+            const response = await fetch(GOOGLE_VISION_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ image: dataUrl }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
             });
 
             if (!response.ok) {
-                throw new Error('Error en la respuesta del servidor');
+                const errorData = await response.json();
+                throw new Error(`Error de Google: ${errorData.error.message}`);
             }
 
             const result = await response.json();
-            codeResultElement.textContent = result.text ? `Texto Extraído:\n${result.text}` : 'No se encontró texto.';
+            const detections = result.responses[0].textAnnotations;
+
+            if (detections && detections.length > 0) {
+                codeResultElement.textContent = `Código Extraído: ${detections[0].description}`;
+            } else {
+                codeResultElement.textContent = 'No se encontró texto en la imagen.';
+            }
+
         } catch (error) {
-            console.error('Error al enviar la imagen para análisis:', error);
-            codeResultElement.textContent = 'Error al contactar el servidor.';
+            console.error('Error al llamar a Google Vision API:', error);
+            codeResultElement.textContent = `Error: ${error.message}`;
         }
     }
 
-    /**
-     * Bucle que verifica si la librería de OpenCV está lista antes de iniciar la app.
-     */
     const checkOpenCv = setInterval(() => {
         if (window.cv && window.cv.Mat) {
             console.log('OpenCV.js está listo.');
