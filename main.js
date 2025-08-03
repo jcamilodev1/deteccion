@@ -210,45 +210,38 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---> FUNCIÓN 2: ¡NUEVA! ANÁLISIS CON OPENAI (GPT-4o)
     async function enviarParaAnalisisGPT() {
         if (!capturedImageDataUrl) return;
-        const API_KEY = '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'; // <-- PON TU CLAVE DE OPENAI AQUÍ
-        const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
-
-        // El "prompt" le dice a GPT-4o qué hacer con la imagen.
-        const prompt = "Extrae el texto visible en esta imagen principlamente numeros de serie . Si ves números de serie, códigos o fechas, identifícalos claramente. Transcribe el texto de la forma más precisa posible.";
-
-        const payload = {
-            model: "gpt-4o", // El modelo más reciente y eficiente con visión
-            messages: [
-                {
-                    role: "user",
-                    content: [
-                        { type: "text", text: prompt },
-                        { type: "image_url", image_url: { url: capturedImageDataUrl } }
-                    ]
-                }
-            ],
-            max_tokens: 500 // Límite de texto en la respuesta
-        };
-
+        
+        // La URL ahora apunta a tu función serverless. 
+        // Vercel la hará disponible en /api/proxy-openai
+        const PROXY_URL = '/api/proxy-openai';
+    
         try {
-            const response = await fetch(OPENAI_URL, {
+            const response = await fetch(PROXY_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${API_KEY}`
+                    // ¡YA NO SE PONE LA CLAVE DE API AQUÍ!
                 },
-                body: JSON.stringify(payload)
+                // Solo enviamos la imagen. El prompt y el modelo ya están en el backend.
+                body: JSON.stringify({ image: capturedImageDataUrl }) 
             });
-            if (!response.ok) { const errorData = await response.json(); throw new Error(`Error de OpenAI: ${errorData.error.message}`); }
+    
+            if (!response.ok) { 
+                const errorData = await response.json(); 
+                // El mensaje de error ahora viene de tu propio servidor
+                throw new Error(`Error del Proxy: ${errorData.error.message || JSON.stringify(errorData)}`); 
+            }
+    
             const result = await response.json();
+    
             if (result.choices && result.choices.length > 0) {
                 gptResultElement.textContent = result.choices[0].message.content;
             } else {
                 gptResultElement.textContent = 'No se recibió una respuesta válida.';
             }
         } catch (error) {
-            console.error('Error con OpenAI API:', error);
-            gptResultElement.textContent = `Error: ${error.message}`;
+            console.error('Error al llamar al proxy de OpenAI:', error);
+            gptResultElement.textContent = `${error.message}`;
         }
     }
 
