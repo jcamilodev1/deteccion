@@ -22,13 +22,14 @@
         }
         h1 { margin-bottom: 15px; }
 
-        /* Contenedores principales para alternar vistas */
+        /* Contenedores principales */
         #liveContainer, #previewContainer {
             width: 100%;
             max-width: 600px;
             display: flex;
             flex-direction: column;
             align-items: center;
+            position: relative; /* Clave para posicionar el visor */
         }
 
         #video, #previewImage {
@@ -41,6 +42,20 @@
             border: 5px solid #ccc;
             transition: border-color 0.3s;
         }
+
+        /* --- NUEVO ESTILO PARA EL VISOR (ROI BOX) --- */
+        #roiBox {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 250px; /* Ancho deseado */
+            height: 150px; /* Alto deseado */
+            transform: translate(-50%, -50%); /* Centra el elemento */
+            border: 3px dashed rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* Efecto de máscara */
+            pointer-events: none; /* Permite hacer clic a través de él */
+        }
+        /* --- --- */
 
         /* Estilos de botones */
         button {
@@ -57,20 +72,15 @@
         }
         #analyzeButton { background-color: #007bff; }
         
-        /* Contenedor para botones de Aceptar/Reintentar */
         .button-group {
             display: flex;
             gap: 10px;
             width: 90%;
             max-width: 400px;
         }
-        .button-group button {
-            width: 100%;
-            margin-top: 20px;
-        }
-
-        #acceptButton { background-color: #28a745; } /* Verde */
-        #retryButton { background-color: #dc3545; } /* Rojo */
+        .button-group button { width: 100%; margin-top: 20px; }
+        #acceptButton { background-color: #28a745; }
+        #retryButton { background-color: #dc3545; }
 
         /* Elementos de resultado */
         #result, #codeResult {
@@ -97,10 +107,11 @@
     <h1>📸 Analizador de Nitidez con OCR</h1>
     
     <div id="liveContainer">
+        <div id="roiBox"></div>
         <video id="video" autoplay playsinline></video>
         <canvas id="canvas" style="display:none;"></canvas>
         <button id="analyzeButton" disabled>Cargando...</button>
-        <p id="result">Apunta la cámara y presiona el botón.</p>
+        <p id="result">Apunta con el visor y presiona el botón.</p>
         <div id="codeResult"></div>
     </div>
 

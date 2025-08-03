@@ -2,19 +2,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ANALYSIS_WIDTH = 320;
 
-    // --- NUEVOS ELEMENTOS DEL DOM ---
+    // --- Elementos del DOM ---
     const liveContainer = document.getElementById('liveContainer');
     const previewContainer = document.getElementById('previewContainer');
     const previewImage = document.getElementById('previewImage');
     const acceptButton = document.getElementById('acceptButton');
     const retryButton = document.getElementById('retryButton');
-    // --- ---
-
     const analyzeButton = document.getElementById('analyzeButton');
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const resultElement = document.getElementById('result');
     const codeResultElement = document.getElementById('codeResult');
+    const roiBox = document.getElementById('roiBox'); // Referencia al visor
 
     let analysisInterval = null;
 
@@ -35,8 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         analyzeButton.addEventListener('click', toggleAnalysis);
-        
-        // --- EVENT LISTENERS PARA NUEVOS BOTONES ---
         acceptButton.addEventListener('click', handleAccept);
         retryButton.addEventListener('click', handleRetry);
     }
@@ -51,8 +48,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function startAnalysis() {
         analyzeButton.textContent = 'Detener Análisis';
-        codeResultElement.textContent = ''; // Limpiar resultados anteriores
+        codeResultElement.textContent = '';
         resultElement.textContent = 'Buscando una imagen nítida...';
+        roiBox.style.display = 'block'; // Muestra el visor
         analysisInterval = setInterval(analyzeAndHandleSharpness, 500);
     }
 
@@ -62,15 +60,16 @@ document.addEventListener('DOMContentLoaded', () => {
         analyzeButton.textContent = 'Iniciar Análisis';
         video.style.borderColor = '#ccc';
         resultElement.textContent = 'Análisis detenido.';
+        roiBox.style.display = 'none'; // Oculta el visor
     }
 
     function analyzeAndHandleSharpness() {
         if (video.readyState < 2) return;
 
+        // Dibuja el cuadro de video completo en el canvas
         const aspectRatio = video.videoHeight / video.videoWidth;
         canvas.width = ANALYSIS_WIDTH;
         canvas.height = ANALYSIS_WIDTH * aspectRatio;
-
         const context = canvas.getContext('2d');
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -80,29 +79,48 @@ document.addEventListener('DOMContentLoaded', () => {
             let matLaplacian = new cv.Mat();
             let mean = new cv.Mat();
             let stdDev = new cv.Mat();
+            
+            // --- NUEVA LÓGICA PARA RECORTAR LA IMAGEN (ROI) ---
+            // Define el tamaño del recorte (ROI). Usamos 250x150 como referencia.
+            const roiWidth = 250; 
+            const roiHeight = 150;
+            // Calcula las coordenadas para centrar el recorte en el canvas de análisis
+            const x = (canvas.width - roiWidth) / 2;
+            const y = (canvas.height - roiHeight) / 2;
 
-            cv.cvtColor(src, matGray, cv.COLOR_RGBA2GRAY, 0);
+            // Asegúrate de que el recorte no se salga del canvas
+            if (x < 0 || y < 0 || (x + roiWidth) > canvas.width || (y + roiHeight) > canvas.height) {
+                console.warn("El visor es más grande que el área de análisis. Analizando el cuadro completo.");
+                cv.cvtColor(src, matGray, cv.COLOR_RGBA2GRAY, 0); // Analiza la imagen completa como fallback
+            } else {
+                let rect = new cv.Rect(x, y, roiWidth, roiHeight);
+                let roi = src.roi(rect); // Crea una nueva Mat que es solo la región de interés
+                cv.cvtColor(roi, matGray, cv.COLOR_RGBA2GRAY, 0); // Convierte a gris solo el recorte
+                roi.delete(); // Libera la memoria del recorte
+            }
+            // --- FIN DE LA LÓGICA DE RECORTE ---
+
+            // El resto del análisis se hace sobre 'matGray', que ahora es la imagen recortada y en gris
             cv.Laplacian(matGray, matLaplacian, cv.CV_64F, 1, 1, 0, cv.BORDER_DEFAULT);
             cv.meanStdDev(matLaplacian, mean, stdDev);
             let variance = stdDev.data64F[0] * stdDev.data64F[0];
 
-            const sharpnessThreshold = 200;
+            const sharpnessThreshold = 100; // Puedes ajustar este umbral
             resultElement.textContent = `Puntaje de nitidez: ${variance.toFixed(2)}`;
 
             if (variance > sharpnessThreshold) {
                 video.style.borderColor = 'green';
+                roiBox.style.borderColor = 'rgba(40, 167, 69, 0.9)'; // Borde del visor en verde
                 resultElement.style.color = 'green';
                 resultElement.textContent += ' (✅ Nítida - Capturada)';
                 
-                // --- LÓGICA DE PREVISUALIZACIÓN ---
-                // Detiene el análisis y muestra la vista previa
                 clearInterval(analysisInterval); 
                 analysisInterval = null;
                 showPreview();
-                // --- ---
 
             } else {
                 video.style.borderColor = 'red';
+                roiBox.style.borderColor = 'rgba(255, 255, 255, 0.9)'; // Borde del visor normal
                 resultElement.style.color = 'red';
                 resultElement.textContent += ' (❌ Borrosa)';
             }
@@ -114,29 +132,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function showPreview() {
-        // Captura la imagen del canvas y la pone en la etiqueta <img>
+        roiBox.style.display = 'none'; // Oculta el visor en la vista previa
         previewImage.src = canvas.toDataURL('image/jpeg');
-        liveContainer.style.display = 'none'; // Oculta la vista en vivo
-        previewContainer.style.display = 'flex'; // Muestra la previsualización
+        liveContainer.style.display = 'none';
+        previewContainer.style.display = 'flex';
     }
     
     function handleAccept() {
-        // Muestra un mensaje y ejecuta el análisis de Google Vision
         codeResultElement.textContent = 'Enviando a Google Vision...';
         enviarParaAnalisis();
-
-        // Opcional: Oculta la vista previa después de aceptar
         previewContainer.style.display = 'none';
         liveContainer.style.display = 'flex';
-        // Reinicia el botón principal
         analyzeButton.textContent = 'Iniciar Análisis';
+        roiBox.style.borderColor = 'rgba(255, 255, 255, 0.9)';
     }
     
     function handleRetry() {
-        // Oculta la vista previa y muestra de nuevo la cámara
         previewContainer.style.display = 'none';
         liveContainer.style.display = 'flex';
-        // Reinicia el análisis para buscar otra foto
         startAnalysis();
     }
 
