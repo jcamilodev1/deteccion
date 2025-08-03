@@ -3,15 +3,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Constantes de configuración ---
     const ANALYSIS_WIDTH = 320;
     const CAPTURE_WIDTH = 1280;
-    const SHARPNESS_THRESHOLD = 150;
+    const SHARPNESS_THRESHOLD = 250;
     const STABILITY_THRESHOLD = 1; 
     const BURST_COUNT = 3;
 
-    // ---> NUEVO: Referencias a los nuevos elementos de resultado
-    const googleResultElement = document.getElementById('googleResult');
-    const gptResultElement = document.getElementById('gptResult');
-    
-    // --- (El resto de referencias al DOM no cambia) ---
+    // --- Elementos del DOM ---
     const liveContainer = document.getElementById('liveContainer');
     const previewContainer = document.getElementById('previewContainer');
     const previewImage = document.getElementById('previewImage');
@@ -23,17 +19,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultElement = document.getElementById('result');
     const roiBox = document.getElementById('roiBox');
     const stabilityIndicator = document.getElementById('stabilityIndicator');
+    const googleResultElement = document.getElementById('googleResult');
+    const gptResultElement = document.getElementById('gptResult');
 
-    // --- (Variables de estado no cambian) ---
+    // --- Variables de estado ---
     let analysisInterval = null;
     let capturedImageDataUrl = null;
     let isDeviceStable = false;
     let isCapturingBurst = false;
 
-    // --- (Las funciones de inicialización y captura no cambian) ---
-    // startApp, toggleAnalysis, requestMotionPermissions, startAnalysis, stopAnalysis,
-    // handleMotionEvent, startStabilityDetector, stopStabilityDetector, analyzeAndHandleSharpness,
-    // processBurstCapture, calculateSharpness, showPreview
+    // --- FUNCIONES DE INICIALIZACIÓN ---
     function startApp() {
         analyzeButton.disabled = false;
         analyzeButton.textContent = 'Iniciar Análisis';
@@ -46,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         acceptButton.addEventListener('click', handleAccept);
         retryButton.addEventListener('click', handleRetry);
     }
+
     async function toggleAnalysis() {
         if (analysisInterval) {
             stopAnalysis();
@@ -54,26 +50,32 @@ document.addEventListener('DOMContentLoaded', () => {
             if (permissionGranted) {
                 startAnalysis();
             } else {
-                alert("Se necesita permiso para acceder a los sensores de movimiento.");
+                alert("Se necesita permiso para acceder a los sensores de movimiento para la detección de estabilidad.");
             }
         }
     }
+
     async function requestMotionPermissions() {
         if (typeof DeviceMotionEvent.requestPermission === 'function') {
             try {
                 const permissionState = await DeviceMotionEvent.requestPermission();
                 return permissionState === 'granted';
-            } catch (error) { return false; }
+            } catch (error) {
+                console.error("No se pudo solicitar el permiso de movimiento:", error);
+                return false;
+            }
         }
         return true;
     }
+
     function startAnalysis() {
         analyzeButton.textContent = 'Detener Análisis';
-        resultElement.textContent = 'Alinea y mantén estable...';
+        resultElement.textContent = 'Alinea el objetivo y mantén el dispositivo estable...';
         roiBox.style.display = 'block';
         startStabilityDetector();
         analysisInterval = setInterval(analyzeAndHandleSharpness, 500);
     }
+
     function stopAnalysis() {
         clearInterval(analysisInterval);
         analysisInterval = null;
@@ -81,10 +83,13 @@ document.addEventListener('DOMContentLoaded', () => {
         roiBox.style.display = 'none';
         stopStabilityDetector();
     }
+
+    // --- LÓGICA DE ESTABILIDAD ---
     const handleMotionEvent = (event) => {
         const { x, y, z } = event.acceleration;
         const motion = Math.abs(x) + Math.abs(y) + Math.abs(z);
         isDeviceStable = motion < STABILITY_THRESHOLD;
+        
         if (isDeviceStable) {
             stabilityIndicator.classList.add('stable');
             roiBox.style.borderColor = 'rgba(40, 167, 69, 0.9)';
@@ -93,50 +98,118 @@ document.addEventListener('DOMContentLoaded', () => {
             roiBox.style.borderColor = 'rgba(255, 255, 255, 0.9)';
         }
     };
-    function startStabilityDetector() { window.addEventListener('devicemotion', handleMotionEvent); }
-    function stopStabilityDetector() { window.removeEventListener('devicemotion', handleMotionEvent); }
+    
+    function startStabilityDetector() {
+        window.addEventListener('devicemotion', handleMotionEvent);
+    }
+
+    function stopStabilityDetector() {
+        window.removeEventListener('devicemotion', handleMotionEvent);
+    }
+
+    // --- LÓGICA DE ANÁLISIS Y CAPTURA ---
     function analyzeAndHandleSharpness() {
         if (video.readyState < 2 || isCapturingBurst) return;
+
         const lowResScore = calculateSharpness(video, analysisCanvas, ANALYSIS_WIDTH);
         resultElement.textContent = `Puntaje de nitidez: ${lowResScore.toFixed(2)}`;
+
         if (lowResScore > SHARPNESS_THRESHOLD && isDeviceStable) {
             processBurstCapture();
         }
     }
+
     async function processBurstCapture() {
         isCapturingBurst = true;
         clearInterval(analysisInterval);
-        resultElement.textContent = '¡Capturando!';
+        resultElement.textContent = '¡Capturando! No te muevas...';
+
         const burstShots = [];
         const captureCanvas = document.createElement('canvas');
+
         for (let i = 0; i < BURST_COUNT; i++) {
             const score = calculateSharpness(video, captureCanvas, CAPTURE_WIDTH);
-            burstShots.push({ imageDataUrl: captureCanvas.toDataURL('image/jpeg', 0.9), score: score });
+            burstShots.push({
+                imageDataUrl: captureCanvas.toDataURL('image/jpeg', 0.9),
+                score: score
+            });
             await new Promise(resolve => setTimeout(resolve, 100)); 
         }
+
         burstShots.sort((a, b) => b.score - a.score);
         capturedImageDataUrl = burstShots[0].imageDataUrl;
+        
+        console.log(`Mejor puntaje de ráfaga: ${burstShots[0].score.toFixed(2)}`);
         showPreview();
     }
+
     function calculateSharpness(videoSource, targetCanvas, width) {
         const aspectRatio = videoSource.videoHeight / videoSource.videoWidth;
         targetCanvas.width = width;
         targetCanvas.height = width * aspectRatio;
         const context = targetCanvas.getContext('2d');
         context.drawImage(videoSource, 0, 0, targetCanvas.width, targetCanvas.height);
+        
         let score = 0;
         try {
-            let src = cv.imread(targetCanvas); let matGray = new cv.Mat(); let matLaplacian = new cv.Mat(); let mean = new cv.Mat(); let stdDev = new cv.Mat();
-            const roiRect = new cv.Rect(targetCanvas.width * 0.1, targetCanvas.height * 0.25, targetCanvas.width * 0.8, targetCanvas.height * 0.5);
+            let src = cv.imread(targetCanvas);
+            let matGray = new cv.Mat();
+            let matLaplacian = new cv.Mat();
+            let mean = new cv.Mat();
+            let stdDev = new cv.Mat();
+            
+            const roiRect = new cv.Rect(
+                targetCanvas.width * 0.1, 
+                targetCanvas.height * 0.25, 
+                targetCanvas.width * 0.8, 
+                targetCanvas.height * 0.5);
             let roi = src.roi(roiRect);
+            
             cv.cvtColor(roi, matGray, cv.COLOR_RGBA2GRAY, 0);
             cv.Laplacian(matGray, matLaplacian, cv.CV_64F, 1, 1, 0, cv.BORDER_DEFAULT);
             cv.meanStdDev(matLaplacian, mean, stdDev);
             score = stdDev.data64F[0] * stdDev.data64F[0];
+
             src.delete(); roi.delete(); matGray.delete(); matLaplacian.delete(); mean.delete(); stdDev.delete();
         } catch (e) { console.error(e); }
+        
         return score;
     }
+
+    // --- FUNCIÓN AUXILIAR PARA RECORTAR LA IMAGEN AL VISOR ---
+    async function cropImageToRoi(imageUrl) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = () => {
+                try {
+                    const roiWidthPercent = 0.80; // 80%
+                    const roiHeightPercent = 0.50; // 50%
+
+                    const cropWidth = img.width * roiWidthPercent;
+                    const cropHeight = img.height * roiHeightPercent;
+                    const cropX = (img.width - cropWidth) / 2;
+                    const cropY = (img.height - cropHeight) / 2;
+
+                    const cropCanvas = document.createElement('canvas');
+                    cropCanvas.width = cropWidth;
+                    cropCanvas.height = cropHeight;
+                    const context = cropCanvas.getContext('2d');
+
+                    context.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+                    
+                    resolve(cropCanvas.toDataURL('image/jpeg', 0.95));
+                } catch (error) {
+                    console.error("Error al recortar la imagen:", error);
+                    reject(error);
+                }
+            };
+            img.onerror = reject;
+            img.src = imageUrl;
+        });
+    }
+
+    // --- Funciones de UI y API ---
     function showPreview() {
         roiBox.style.display = 'none';
         stopStabilityDetector();
@@ -146,32 +219,35 @@ document.addEventListener('DOMContentLoaded', () => {
         isCapturingBurst = false;
     }
     
-    // ---> CAMBIO: Esta función ahora orquesta el envío a ambos servicios
     async function handleAccept() {
-        // Deshabilita botones para evitar múltiples clics
         acceptButton.disabled = true;
         retryButton.disabled = true;
 
-        // Limpia resultados anteriores y muestra mensaje de carga
-        googleResultElement.textContent = 'Analizando...';
-        gptResultElement.textContent = 'Analizando...';
+        googleResultElement.textContent = 'Recortando y analizando...';
+        gptResultElement.textContent = 'Recortando y analizando...';
 
-        // Oculta la vista previa y regresa a la vista principal
         previewContainer.style.display = 'none';
         liveContainer.style.display = 'flex';
         analyzeButton.textContent = 'Iniciar Análisis';
         resultElement.textContent = 'Análisis en proceso...';
 
-        // Llama a ambos servicios en paralelo
-        await Promise.all([
-            enviarParaAnalisisGoogle(),
-            enviarParaAnalisisGPT()
-        ]);
-        
-        // Reactiva los botones
-        acceptButton.disabled = false;
-        retryButton.disabled = false;
-        resultElement.textContent = 'Análisis completado.';
+        try {
+            const croppedImageDataUrl = await cropImageToRoi(capturedImageDataUrl);
+
+            await Promise.all([
+                enviarParaAnalisisGoogle(croppedImageDataUrl),
+                enviarParaAnalisisGPT(croppedImageDataUrl)
+            ]);
+            
+            resultElement.textContent = 'Análisis completado.';
+
+        } catch (error) {
+            resultElement.textContent = `Error durante el recorte: ${error.message}`;
+            console.error(error);
+        } finally {
+            acceptButton.disabled = false;
+            retryButton.disabled = false;
+        }
     }
     
     function handleRetry() {
@@ -183,12 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
         startAnalysis();
     }
     
-    // ---> FUNCIÓN 1: ANÁLISIS CON GOOGLE VISION API (antes era enviarParaAnalisis)
-    async function enviarParaAnalisisGoogle() {
-        if (!capturedImageDataUrl) return;
-        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw'; // <-- PON TU CLAVE DE GOOGLE AQUÍ
+    async function enviarParaAnalisisGoogle(imageDataUrl) {
+        if (!imageDataUrl) return;
+        const API_KEY = 'TU_API_KEY_DE_GOOGLE_CLOUD';
         const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
-        const base64ImageData = capturedImageDataUrl.split(',')[1];
+        const base64ImageData = imageDataUrl.split(',')[1];
         const requestBody = { requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ] };
         
         try {
@@ -207,33 +282,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ---> FUNCIÓN 2: ¡NUEVA! ANÁLISIS CON OPENAI (GPT-4o)
-    async function enviarParaAnalisisGPT() {
-        if (!capturedImageDataUrl) return;
-        
-        // La URL ahora apunta a tu función serverless. 
-        // Vercel la hará disponible en /api/proxy-openai
+    async function enviarParaAnalisisGPT(imageDataUrl) {
+        if (!imageDataUrl) return;
         const PROXY_URL = '/api/proxy-openai';
-    
+
         try {
             const response = await fetch(PROXY_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    // ¡YA NO SE PONE LA CLAVE DE API AQUÍ!
-                },
-                // Solo enviamos la imagen. El prompt y el modelo ya están en el backend.
-                body: JSON.stringify({ image: capturedImageDataUrl }) 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageDataUrl }) 
             });
-    
+
             if (!response.ok) { 
                 const errorData = await response.json(); 
-                // El mensaje de error ahora viene de tu propio servidor
                 throw new Error(`Error del Proxy: ${errorData.error.message || JSON.stringify(errorData)}`); 
             }
-    
+
             const result = await response.json();
-    
             if (result.choices && result.choices.length > 0) {
                 gptResultElement.textContent = result.choices[0].message.content;
             } else {

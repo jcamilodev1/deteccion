@@ -6,21 +6,28 @@
     <title>Comparador OCR: Vision vs. GPT</title>
     <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
     <style>
-        /* Estilos generales */
+        /* --- CAMBIOS CLAVE DE ESTILO --- */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start; /* Alinear al inicio */
-            min-height: 100vh;
-            margin: 0;
+            justify-content: flex-start; /* Alinear al inicio, no al centro */
             padding: 20px 10px;
             box-sizing: border-box;
             background-color: #f0f0f0;
             text-align: center;
+            overflow-y: auto; /* Permitir scroll si el contenido es largo */
         }
-        h1 { margin-bottom: 15px; font-size: 1.5em; }
+        /* --- FIN DE CAMBIOS CLAVE --- */
+
+        h1 { margin: 0 0 15px 0; font-size: 1.5em; }
 
         /* Contenedores */
         #liveContainer, #previewContainer {
@@ -30,7 +37,9 @@
             flex-direction: column;
             align-items: center;
             position: relative;
+            margin-bottom: 20px; /* Añadir espacio debajo */
         }
+
         #video, #previewImage {
             width: 100%;
             height: auto;
@@ -72,9 +81,8 @@
         #acceptButton { background-color: #28a745; }
         #retryButton { background-color: #dc3545; }
 
-        /* --- NUEVO: Contenedor para ambos resultados --- */
+        /* Contenedor de resultados */
         #resultsContainer {
-            margin-top: 20px;
             width: 100%;
             max-width: 600px;
             display: flex;
@@ -97,14 +105,16 @@
             border-bottom: 1px solid #eee;
             font-size: 16px;
             color: #555;
+            text-align: left;
         }
         .result-box p {
             margin: 0;
             font-size: 16px;
-            font-weight: 500;
+            font-weight: normal; /* Texto más legible */
             color: #333;
-            white-space: pre-wrap; /* Mantiene los saltos de línea */
+            white-space: pre-wrap;
             word-wrap: break-word;
+            text-align: left;
         }
     </style>
 </head>
