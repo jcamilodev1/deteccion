@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador de Nitidez Móvil con OCR</title>
+    <title>Comparador OCR: Vision vs. GPT</title>
     <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
     <style>
         /* Estilos generales */
@@ -13,27 +12,25 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start; /* Alinear al inicio */
             min-height: 100vh;
             margin: 0;
-            padding: 10px;
+            padding: 20px 10px;
             box-sizing: border-box;
             background-color: #f0f0f0;
             text-align: center;
-            overflow: hidden; /* Evita barras de scroll */
         }
         h1 { margin-bottom: 15px; font-size: 1.5em; }
 
-        /* Contenedores principales */
+        /* Contenedores */
         #liveContainer, #previewContainer {
             width: 100%;
             max-width: 600px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            position: relative; /* Clave para posicionar elementos superpuestos */
+            position: relative;
         }
-
         #video, #previewImage {
             width: 100%;
             height: auto;
@@ -41,26 +38,21 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             background-color: #333;
         }
-        #video {
-            border: 5px solid #ccc;
-            transition: border-color 0.3s;
-        }
+        #video { border: 5px solid #ccc; transition: border-color 0.3s; }
 
-        /* Visor de la Región de Interés (ROI) */
+        /* Visor y Estabilidad */
         #roiBox {
             position: absolute;
             left: 50%;
             top: 50%;
-            width: 80%; /* Ancho del visor relativo al contenedor */
-            height: 50%; /* Alto del visor relativo al contenedor */
+            width: 80%;
+            height: 50%;
             transform: translate(-50%, -50%);
             border: 3px dashed rgba(255, 255, 255, 0.8);
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* Efecto de máscara */
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
             pointer-events: none;
             transition: border-color 0.3s;
         }
-
-        /* Indicador de Estabilidad */
         #stabilityIndicator {
             position: absolute;
             top: 20px;
@@ -70,63 +62,55 @@
             transition: opacity 0.3s, transform 0.3s;
             pointer-events: none;
         }
-        #stabilityIndicator.stable {
-            opacity: 1;
-            transform: scale(1.1);
-        }
-
-        /* Estilos de botones */
-        button {
-            margin-top: 15px;
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 90%;
-            max-width: 400px;
-        }
-        #analyzeButton { background-color: #007bff; }
+        #stabilityIndicator.stable { opacity: 1; transform: scale(1.1); }
         
-        /* Grupo de botones para Aceptar/Reintentar */
-        .button-group {
-            display: flex;
-            gap: 10px;
-            width: 90%;
-            max-width: 400px;
-        }
+        /* Botones */
+        button { margin-top: 15px; padding: 15px 30px; font-size: 18px; font-weight: bold; color: white; border: none; border-radius: 8px; cursor: pointer; width: 90%; max-width: 400px; }
+        #analyzeButton { background-color: #007bff; }
+        .button-group { display: flex; gap: 10px; width: 90%; max-width: 400px; }
         .button-group button { width: 100%; margin-top: 20px; }
         #acceptButton { background-color: #28a745; }
         #retryButton { background-color: #dc3545; }
 
-        /* Elementos de resultado */
-        #result, #codeResult {
-            margin-top: 15px;
-            font-weight: 500;
-            min-height: 24px;
+        /* --- NUEVO: Contenedor para ambos resultados --- */
+        #resultsContainer {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
         }
-        #result { font-size: 20px; }
-        #codeResult {
-            font-size: 18px;
-            font-weight: bold;
-            color: #333;
-            word-break: break-word;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background-color: #fff;
-            min-height: 24px;
+        .result-box {
             width: 90%;
             max-width: 400px;
-            box-sizing: border-box;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .result-box h3 {
+            margin: 0 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+            font-size: 16px;
+            color: #555;
+        }
+        .result-box p {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            white-space: pre-wrap; /* Mantiene los saltos de línea */
+            word-wrap: break-word;
         }
     </style>
 </head>
 <body>
 
-    <h1>📸 Analizador de Nitidez con OCR</h1>
+    <h1>📸 Comparador OCR: Vision vs. GPT</h1>
     
     <div id="liveContainer">
         <div id="roiBox"></div>
@@ -135,7 +119,6 @@
         <canvas id="canvas" style="display:none;"></canvas>
         <button id="analyzeButton" disabled>Cargando...</button>
         <p id="result">Apunta con el visor y presiona el botón.</p>
-        <div id="codeResult"></div>
     </div>
 
     <div id="previewContainer" style="display:none;">
@@ -143,7 +126,18 @@
         <img id="previewImage" alt="Previsualización de la foto capturada">
         <div class="button-group">
             <button id="retryButton">Tomar de Nuevo</button>
-            <button id="acceptButton">Aceptar y Analizar</button>
+            <button id="acceptButton">Aceptar y Comparar</button>
+        </div>
+    </div>
+
+    <div id="resultsContainer">
+        <div class="result-box">
+            <h3>🤖 Google Vision API</h3>
+            <p id="googleResult">-</p>
+        </div>
+        <div class="result-box">
+            <h3>🧠 GPT-4o (OpenAI)</h3>
+            <p id="gptResult">-</p>
         </div>
     </div>
 
