@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cv.Laplacian(matGray, matLaplacian, cv.CV_64F, 1, 1, 0, cv.BORDER_DEFAULT);
             cv.meanStdDev(matLaplacian, mean, stdDev);
             let variance = stdDev.data64F[0] * stdDev.data64F[0];
-            const sharpnessThreshold = 100;
+            const sharpnessThreshold = 250;
             resultElement.textContent = `Puntaje de nitidez: ${variance.toFixed(2)}`;
 
             if (variance > sharpnessThreshold) {
