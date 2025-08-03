@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---> FUNCIÓN 2: ¡NUEVA! ANÁLISIS CON OPENAI (GPT-4o)
     async function enviarParaAnalisisGPT() {
         if (!capturedImageDataUrl) return;
-        const API_KEY = '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'; // <-- PON TU CLAVE DE OPENAI AQUÍ
+        const API_KEY = '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'; // <-- PON TU CLAVE DE OPENAI AQUÍ
         const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 
         // El "prompt" le dice a GPT-4o qué hacer con la imagen.
