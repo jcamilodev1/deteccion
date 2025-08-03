@@ -2,6 +2,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ANALYSIS_WIDTH = 320;
 
+    // --- NUEVOS ELEMENTOS DEL DOM ---
+    const liveContainer = document.getElementById('liveContainer');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewImage = document.getElementById('previewImage');
+    const acceptButton = document.getElementById('acceptButton');
+    const retryButton = document.getElementById('retryButton');
+    // --- ---
+
     const analyzeButton = document.getElementById('analyzeButton');
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -9,11 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const codeResultElement = document.getElementById('codeResult');
 
     let analysisInterval = null;
-    let photoTaken = false;
 
     function startApp() {
         analyzeButton.disabled = false;
-        analyzeButton.textContent = 'Iniciar Análisis en Tiempo Real';
+        analyzeButton.textContent = 'Iniciar Análisis';
 
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
@@ -27,19 +34,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         }
 
-        analyzeButton.addEventListener('click', () => {
-            if (analysisInterval) {
-                clearInterval(analysisInterval);
-                analysisInterval = null;
-                analyzeButton.textContent = 'Iniciar Análisis en Tiempo Real';
-                video.style.borderColor = '#ccc';
-                resultElement.textContent = 'Análisis detenido.';
-                codeResultElement.textContent = '';
-            } else {
-                analyzeButton.textContent = 'Detener Análisis';
-                analysisInterval = setInterval(analyzeAndHandleSharpness, 500);
-            }
-        });
+        analyzeButton.addEventListener('click', toggleAnalysis);
+        
+        // --- EVENT LISTENERS PARA NUEVOS BOTONES ---
+        acceptButton.addEventListener('click', handleAccept);
+        retryButton.addEventListener('click', handleRetry);
+    }
+
+    function toggleAnalysis() {
+        if (analysisInterval) {
+            stopAnalysis();
+        } else {
+            startAnalysis();
+        }
+    }
+    
+    function startAnalysis() {
+        analyzeButton.textContent = 'Detener Análisis';
+        codeResultElement.textContent = ''; // Limpiar resultados anteriores
+        resultElement.textContent = 'Buscando una imagen nítida...';
+        analysisInterval = setInterval(analyzeAndHandleSharpness, 500);
+    }
+
+    function stopAnalysis() {
+        clearInterval(analysisInterval);
+        analysisInterval = null;
+        analyzeButton.textContent = 'Iniciar Análisis';
+        video.style.borderColor = '#ccc';
+        resultElement.textContent = 'Análisis detenido.';
     }
 
     function analyzeAndHandleSharpness() {
@@ -70,19 +92,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (variance > sharpnessThreshold) {
                 video.style.borderColor = 'green';
                 resultElement.style.color = 'green';
-                if (!photoTaken) {
-                    resultElement.textContent += ' (✅ Nítida - Analizando...)';
-                    enviarParaAnalisis();
-                    photoTaken = true;
-                } else {
-                    resultElement.textContent += ' (✅ Nítida)';
-                }
+                resultElement.textContent += ' (✅ Nítida - Capturada)';
+                
+                // --- LÓGICA DE PREVISUALIZACIÓN ---
+                // Detiene el análisis y muestra la vista previa
+                clearInterval(analysisInterval); 
+                analysisInterval = null;
+                showPreview();
+                // --- ---
+
             } else {
                 video.style.borderColor = 'red';
                 resultElement.style.color = 'red';
                 resultElement.textContent += ' (❌ Borrosa)';
-                photoTaken = false;
-                codeResultElement.textContent = '';
             }
 
             src.delete(); matGray.delete(); matLaplacian.delete(); mean.delete(); stdDev.delete();
@@ -90,22 +112,42 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error en OpenCV:", error);
         }
     }
+    
+    function showPreview() {
+        // Captura la imagen del canvas y la pone en la etiqueta <img>
+        previewImage.src = canvas.toDataURL('image/jpeg');
+        liveContainer.style.display = 'none'; // Oculta la vista en vivo
+        previewContainer.style.display = 'flex'; // Muestra la previsualización
+    }
+    
+    function handleAccept() {
+        // Muestra un mensaje y ejecuta el análisis de Google Vision
+        codeResultElement.textContent = 'Enviando a Google Vision...';
+        enviarParaAnalisis();
+
+        // Opcional: Oculta la vista previa después de aceptar
+        previewContainer.style.display = 'none';
+        liveContainer.style.display = 'flex';
+        // Reinicia el botón principal
+        analyzeButton.textContent = 'Iniciar Análisis';
+    }
+    
+    function handleRetry() {
+        // Oculta la vista previa y muestra de nuevo la cámara
+        previewContainer.style.display = 'none';
+        liveContainer.style.display = 'flex';
+        // Reinicia el análisis para buscar otra foto
+        startAnalysis();
+    }
+
 
     async function enviarParaAnalisis() {
-        // ===================================================================
-        // ==  Pega la Clave de API que creaste en la Consola de Google Cloud ==
-        // ==  (NO uses el contendo del archivo JSON)                      ==
-        // ===================================================================
-        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw';
-        // ===================================================================
-
+        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw'; // <-- RECUERDA PONER TU CLAVE API
         const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
         const base64ImageData = canvas.toDataURL('image/jpeg').split(',')[1];
         const requestBody = {
             requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ],
         };
-
-        codeResultElement.textContent = 'Enviando a Google Vision...';
 
         try {
             const response = await fetch(GOOGLE_VISION_URL, {
@@ -123,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const detections = result.responses[0].textAnnotations;
 
             if (detections && detections.length > 0) {
-                codeResultElement.textContent = `Código Extraído: ${detections[0].description}`;
+                codeResultElement.textContent = `Texto Extraído: ${detections[0].description}`;
             } else {
                 codeResultElement.textContent = 'No se encontró texto en la imagen.';
             }
@@ -136,7 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const checkOpenCv = setInterval(() => {
         if (window.cv && window.cv.Mat) {
-            console.log('OpenCV.js está listo.');
             clearInterval(checkOpenCv);
             startApp();
         }

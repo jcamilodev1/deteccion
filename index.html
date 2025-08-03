@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador de Nitidez Móvil con Google Vision (PRUEBAS)</title>
+    <title>Analizador de Nitidez Móvil con Google Vision</title>
     <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
     <style>
-        /* ESTILOS PARA UNA MEJOR EXPERIENCIA MÓVIL */
+        /* Estilos generales */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex;
@@ -20,41 +20,66 @@
             background-color: #f0f0f0;
             text-align: center;
         }
-        h1 {
-            margin-bottom: 15px;
-        }
-        #video {
-            /* Hacer el video flexible */
+        h1 { margin-bottom: 15px; }
+
+        /* Contenedores principales para alternar vistas */
+        #liveContainer, #previewContainer {
             width: 100%;
-            max-width: 600px; /* Un límite para pantallas más grandes */
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #video, #previewImage {
+            width: 100%;
             height: auto;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            /* Borde inicial que cambiará de color */
+        }
+        #video {
             border: 5px solid #ccc;
             transition: border-color 0.3s;
         }
+
+        /* Estilos de botones */
         button {
-            margin-top: 20px;
-            padding: 15px 30px; /* Botón más grande para tocar */
+            margin-top: 15px;
+            padding: 15px 30px;
             font-size: 18px;
             font-weight: bold;
             color: white;
-            background-color: #007bff;
             border: none;
             border-radius: 8px;
             cursor: pointer;
             width: 90%;
             max-width: 400px;
         }
-        #result {
+        #analyzeButton { background-color: #007bff; }
+        
+        /* Contenedor para botones de Aceptar/Reintentar */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            width: 90%;
+            max-width: 400px;
+        }
+        .button-group button {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        #acceptButton { background-color: #28a745; } /* Verde */
+        #retryButton { background-color: #dc3545; } /* Rojo */
+
+        /* Elementos de resultado */
+        #result, #codeResult {
             margin-top: 15px;
             font-size: 20px;
             font-weight: 500;
-            min-height: 30px; /* Evita que la página salte al cambiar el texto */
+            min-height: 30px;
         }
         #codeResult {
-            margin-top: 20px;
             font-size: 18px;
             font-weight: bold;
             color: #333;
@@ -69,12 +94,24 @@
 </head>
 <body>
 
-    <h1>📸 Analizador de Nitidez con OCR (PRUEBAS)</h1>
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas" style="display:none;"></canvas>
-    <button id="analyzeButton" disabled>Cargando...</button>
-    <p id="result">Apunta la cámara y presiona el botón.</p>
-    <div id="codeResult"></div>
+    <h1>📸 Analizador de Nitidez con OCR</h1>
+    
+    <div id="liveContainer">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <button id="analyzeButton" disabled>Cargando...</button>
+        <p id="result">Apunta la cámara y presiona el botón.</p>
+        <div id="codeResult"></div>
+    </div>
+
+    <div id="previewContainer" style="display:none;">
+        <h2>Revisa la foto capturada</h2>
+        <img id="previewImage" alt="Previsualización de la foto capturada">
+        <div class="button-group">
+            <button id="retryButton">Tomar de Nuevo</button>
+            <button id="acceptButton">Aceptar y Analizar</button>
+        </div>
+    </div>
 
     <script src="main.js"></script>
 </body>
