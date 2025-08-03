@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Constantes de configuración ---
     const ANALYSIS_WIDTH = 320; // Para el análisis en tiempo real (rápido)
     const CAPTURE_WIDTH = 1280; // Para la foto final (alta calidad)
-    const SHARPNESS_THRESHOLD = 250; // Umbral de nitidez para disparar la captura
+    const SHARPNESS_THRESHOLD = 150; // Umbral de nitidez para disparar la captura
     const STABILITY_THRESHOLD = 1; // Umbral de movimiento. Más bajo = más estricto
     const BURST_COUNT = 3; // Número de fotos a tomar en la ráfaga
 
@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function enviarParaAnalisis() {
         if (!capturedImageDataUrl) return;
-        const API_KEY = 'TU_API_KEY_DE_GOOGLE_VISION'; // <-- RECUERDA PONER TU CLAVE
+        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw'; // <-- RECUERDA PONER TU CLAVE
         const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
         const base64ImageData = capturedImageDataUrl.split(',')[1];
         const requestBody = { requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ] };
