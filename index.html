@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador de Nitidez Móvil con Google Vision</title>
+    <title>Analizador de Nitidez Móvil con OCR</title>
     <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
     <style>
         /* Estilos generales */
@@ -19,8 +20,9 @@
             box-sizing: border-box;
             background-color: #f0f0f0;
             text-align: center;
+            overflow: hidden; /* Evita barras de scroll */
         }
-        h1 { margin-bottom: 15px; }
+        h1 { margin-bottom: 15px; font-size: 1.5em; }
 
         /* Contenedores principales */
         #liveContainer, #previewContainer {
@@ -29,7 +31,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            position: relative; /* Clave para posicionar el visor */
+            position: relative; /* Clave para posicionar elementos superpuestos */
         }
 
         #video, #previewImage {
@@ -37,25 +39,41 @@
             height: auto;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            background-color: #333;
         }
         #video {
             border: 5px solid #ccc;
             transition: border-color 0.3s;
         }
 
-        /* --- NUEVO ESTILO PARA EL VISOR (ROI BOX) --- */
+        /* Visor de la Región de Interés (ROI) */
         #roiBox {
             position: absolute;
             left: 50%;
             top: 50%;
-            width: 250px; /* Ancho deseado */
-            height: 150px; /* Alto deseado */
-            transform: translate(-50%, -50%); /* Centra el elemento */
-            border: 3px dashed rgba(255, 255, 255, 0.9);
+            width: 80%; /* Ancho del visor relativo al contenedor */
+            height: 50%; /* Alto del visor relativo al contenedor */
+            transform: translate(-50%, -50%);
+            border: 3px dashed rgba(255, 255, 255, 0.8);
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* Efecto de máscara */
-            pointer-events: none; /* Permite hacer clic a través de él */
+            pointer-events: none;
+            transition: border-color 0.3s;
         }
-        /* --- --- */
+
+        /* Indicador de Estabilidad */
+        #stabilityIndicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 2em;
+            opacity: 0.5;
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+        }
+        #stabilityIndicator.stable {
+            opacity: 1;
+            transform: scale(1.1);
+        }
 
         /* Estilos de botones */
         button {
@@ -72,6 +90,7 @@
         }
         #analyzeButton { background-color: #007bff; }
         
+        /* Grupo de botones para Aceptar/Reintentar */
         .button-group {
             display: flex;
             gap: 10px;
@@ -85,10 +104,10 @@
         /* Elementos de resultado */
         #result, #codeResult {
             margin-top: 15px;
-            font-size: 20px;
             font-weight: 500;
-            min-height: 30px;
+            min-height: 24px;
         }
+        #result { font-size: 20px; }
         #codeResult {
             font-size: 18px;
             font-weight: bold;
@@ -99,6 +118,9 @@
             border-radius: 5px;
             background-color: #fff;
             min-height: 24px;
+            width: 90%;
+            max-width: 400px;
+            box-sizing: border-box;
         }
     </style>
 </head>
@@ -108,6 +130,7 @@
     
     <div id="liveContainer">
         <div id="roiBox"></div>
+        <div id="stabilityIndicator">📱</div> 
         <video id="video" autoplay playsinline></video>
         <canvas id="canvas" style="display:none;"></canvas>
         <button id="analyzeButton" disabled>Cargando...</button>
