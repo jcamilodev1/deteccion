@@ -261,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function enviarParaAnalisisGoogle(imageDataUrl) {
         if (!imageDataUrl) return;
-        const API_KEY = 'TU_API_KEY_DE_GOOGLE_CLOUD';
+        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw';
         const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
         const base64ImageData = imageDataUrl.split(',')[1];
         const requestBody = { requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ] };
