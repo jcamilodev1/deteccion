@@ -1,11 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- Constantes de configuración ---
-    const ANALYSIS_WIDTH = 320; // Para el análisis en tiempo real (rápido)
-    const CAPTURE_WIDTH = 1280; // Para la foto final (alta calidad)
-    const SHARPNESS_THRESHOLD = 150; // Umbral de nitidez para disparar la captura
-    const STABILITY_THRESHOLD = 1; // Umbral de movimiento. Más bajo = más estricto
-    const BURST_COUNT = 3; // Número de fotos a tomar en la ráfaga
+    const ANALYSIS_WIDTH = 320;
+    const CAPTURE_WIDTH = 1280;
+    const SHARPNESS_THRESHOLD = 150;
+    const STABILITY_THRESHOLD = 1; 
+    const BURST_COUNT = 3;
 
     // --- Elementos del DOM ---
     const liveContainer = document.getElementById('liveContainer');
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false;
             }
         }
-        return true; // Para dispositivos que no requieren permiso explícito (Android)
+        return true;
     }
 
     function startAnalysis() {
@@ -91,10 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (isDeviceStable) {
             stabilityIndicator.classList.add('stable');
-            roiBox.style.borderColor = 'rgba(40, 167, 69, 0.9)'; // Verde
+            roiBox.style.borderColor = 'rgba(40, 167, 69, 0.9)';
         } else {
             stabilityIndicator.classList.remove('stable');
-            roiBox.style.borderColor = 'rgba(255, 255, 255, 0.9)'; // Blanco
+            roiBox.style.borderColor = 'rgba(255, 255, 255, 0.9)';
         }
     };
     
@@ -113,7 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const lowResScore = calculateSharpness(video, analysisCanvas, ANALYSIS_WIDTH);
         resultElement.textContent = `Puntaje de nitidez: ${lowResScore.toFixed(2)}`;
 
-        // CONDICIÓN DE CAPTURA: Nítido + Estable + No capturando ya
         if (lowResScore > SHARPNESS_THRESHOLD && isDeviceStable) {
             processBurstCapture();
         }
@@ -186,12 +185,19 @@ document.addEventListener('DOMContentLoaded', () => {
         isCapturingBurst = false;
     }
     
-    function handleAccept() {
-        codeResultElement.textContent = 'Enviando a Google Vision...';
-        enviarParaAnalisis();
+    // ---> LIGERO CAMBIO: La función ahora es asíncrona para esperar el pre-procesamiento
+    async function handleAccept() {
+        acceptButton.disabled = true;
+        retryButton.disabled = true;
+        codeResultElement.textContent = 'Pre-procesando imagen...';
+
+        await enviarParaAnalisis();
+
         previewContainer.style.display = 'none';
         liveContainer.style.display = 'flex';
         analyzeButton.textContent = 'Iniciar Análisis';
+        acceptButton.disabled = false;
+        retryButton.disabled = false;
     }
     
     function handleRetry() {
@@ -201,24 +207,82 @@ document.addEventListener('DOMContentLoaded', () => {
         startAnalysis();
     }
 
+    // ---> ¡NUEVA FUNCIÓN DE PRE-PROCESAMIENTO!
+    async function preprocessImageForOCR(imageUrl) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = () => {
+                try {
+                    const src = cv.imread(img);
+                    const gray = new cv.Mat();
+                    const processed = new cv.Mat();
+
+                    // 1. Convertir a escala de grises
+                    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+                    // 2. Aplicar Binarización Adaptativa para hacer los negros más negros
+                    // Parámetros: (imagen fuente, destino, valor máximo, método, tipo de umbral, tamaño del bloque, constante C)
+                    // El tamaño del bloque (11) y la constante C (4) se pueden ajustar para obtener mejores resultados.
+                    cv.adaptiveThreshold(gray, processed, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 4);
+
+                    // Convertir la imagen procesada de vuelta a un formato de imagen
+                    const outputCanvas = document.createElement('canvas');
+                    cv.imshow(outputCanvas, processed);
+                    
+                    // Liberar memoria
+                    src.delete();
+                    gray.delete();
+                    processed.delete();
+
+                    resolve(outputCanvas.toDataURL('image/jpeg'));
+                } catch (error) {
+                    console.error("Error en el pre-procesamiento de OpenCV:", error);
+                    reject(error);
+                }
+            };
+            img.onerror = reject;
+            img.src = imageUrl;
+        });
+    }
+
+    // ---> CAMBIO PRINCIPAL: Ahora llama a la función de pre-procesamiento primero.
     async function enviarParaAnalisis() {
         if (!capturedImageDataUrl) return;
-        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw'; // <-- RECUERDA PONER TU CLAVE
-        const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
-        const base64ImageData = capturedImageDataUrl.split(',')[1];
-        const requestBody = { requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ] };
+
         try {
+            // 1. Pre-procesar la imagen
+            const processedImageUrl = await preprocessImageForOCR(capturedImageDataUrl);
+
+            // Opcional: Actualizar la vista previa para ver la imagen procesada
+            // previewImage.src = processedImageUrl;
+
+            codeResultElement.textContent = 'Enviando a Google Vision...';
+
+            // 2. Enviar la imagen procesada a la API
+            const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw'; // <-- RECUERDA PONER TU CLAVE
+            const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
+            const base64ImageData = processedImageUrl.split(',')[1];
+            const requestBody = { requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ] };
+
             const response = await fetch(GOOGLE_VISION_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
-            if (!response.ok) { const errorData = await response.json(); throw new Error(`Error de Google: ${errorData.error.message}`); }
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`Error de Google: ${errorData.error.message}`);
+            }
+            
             const result = await response.json();
             const detections = result.responses[0].textAnnotations;
+            
             if (detections && detections.length > 0) {
                 codeResultElement.textContent = `Texto Extraído: ${detections[0].description}`;
             } else {
                 codeResultElement.textContent = 'No se encontró texto en la imagen.';
             }
+
         } catch (error) {
-            console.error('Error al llamar a Google Vision API:', error);
+            console.error('Error durante el análisis:', error);
             codeResultElement.textContent = `Error: ${error.message}`;
         }
     }
