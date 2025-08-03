@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Constantes de configuración ---
     const ANALYSIS_WIDTH = 320;
     const CAPTURE_WIDTH = 1280;
-    const SHARPNESS_THRESHOLD = 250;
+    const SHARPNESS_THRESHOLD = 150;
     const STABILITY_THRESHOLD = 1; 
     const BURST_COUNT = 3;
 
@@ -110,10 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE ANÁLISIS Y CAPTURA ---
     function analyzeAndHandleSharpness() {
         if (video.readyState < 2 || isCapturingBurst) return;
-
         const lowResScore = calculateSharpness(video, analysisCanvas, ANALYSIS_WIDTH);
         resultElement.textContent = `Puntaje de nitidez: ${lowResScore.toFixed(2)}`;
-
         if (lowResScore > SHARPNESS_THRESHOLD && isDeviceStable) {
             processBurstCapture();
         }
@@ -123,22 +121,15 @@ document.addEventListener('DOMContentLoaded', () => {
         isCapturingBurst = true;
         clearInterval(analysisInterval);
         resultElement.textContent = '¡Capturando! No te muevas...';
-
         const burstShots = [];
         const captureCanvas = document.createElement('canvas');
-
         for (let i = 0; i < BURST_COUNT; i++) {
             const score = calculateSharpness(video, captureCanvas, CAPTURE_WIDTH);
-            burstShots.push({
-                imageDataUrl: captureCanvas.toDataURL('image/jpeg', 0.9),
-                score: score
-            });
+            burstShots.push({ imageDataUrl: captureCanvas.toDataURL('image/jpeg', 0.9), score: score });
             await new Promise(resolve => setTimeout(resolve, 100)); 
         }
-
         burstShots.sort((a, b) => b.score - a.score);
         capturedImageDataUrl = burstShots[0].imageDataUrl;
-        
         console.log(`Mejor puntaje de ráfaga: ${burstShots[0].score.toFixed(2)}`);
         showPreview();
     }
@@ -149,60 +140,79 @@ document.addEventListener('DOMContentLoaded', () => {
         targetCanvas.height = width * aspectRatio;
         const context = targetCanvas.getContext('2d');
         context.drawImage(videoSource, 0, 0, targetCanvas.width, targetCanvas.height);
-        
         let score = 0;
         try {
-            let src = cv.imread(targetCanvas);
-            let matGray = new cv.Mat();
-            let matLaplacian = new cv.Mat();
-            let mean = new cv.Mat();
-            let stdDev = new cv.Mat();
-            
-            const roiRect = new cv.Rect(
-                targetCanvas.width * 0.1, 
-                targetCanvas.height * 0.25, 
-                targetCanvas.width * 0.8, 
-                targetCanvas.height * 0.5);
+            let src = cv.imread(targetCanvas); let matGray = new cv.Mat(); let matLaplacian = new cv.Mat(); let mean = new cv.Mat(); let stdDev = new cv.Mat();
+            const roiRect = new cv.Rect( targetCanvas.width * 0.1, targetCanvas.height * 0.25, targetCanvas.width * 0.8, targetCanvas.height * 0.5);
             let roi = src.roi(roiRect);
-            
             cv.cvtColor(roi, matGray, cv.COLOR_RGBA2GRAY, 0);
             cv.Laplacian(matGray, matLaplacian, cv.CV_64F, 1, 1, 0, cv.BORDER_DEFAULT);
             cv.meanStdDev(matLaplacian, mean, stdDev);
             score = stdDev.data64F[0] * stdDev.data64F[0];
-
             src.delete(); roi.delete(); matGray.delete(); matLaplacian.delete(); mean.delete(); stdDev.delete();
         } catch (e) { console.error(e); }
-        
         return score;
     }
 
-    // --- FUNCIÓN AUXILIAR PARA RECORTAR LA IMAGEN AL VISOR ---
+    // --- FUNCIÓN PARA RECORTAR LA IMAGEN AL VISOR ---
     async function cropImageToRoi(imageUrl) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.crossOrigin = "Anonymous";
             img.onload = () => {
                 try {
-                    const roiWidthPercent = 0.80; // 80%
-                    const roiHeightPercent = 0.50; // 50%
-
+                    const roiWidthPercent = 0.80; const roiHeightPercent = 0.50;
                     const cropWidth = img.width * roiWidthPercent;
                     const cropHeight = img.height * roiHeightPercent;
                     const cropX = (img.width - cropWidth) / 2;
                     const cropY = (img.height - cropHeight) / 2;
-
                     const cropCanvas = document.createElement('canvas');
                     cropCanvas.width = cropWidth;
                     cropCanvas.height = cropHeight;
                     const context = cropCanvas.getContext('2d');
-
                     context.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-                    
                     resolve(cropCanvas.toDataURL('image/jpeg', 0.95));
-                } catch (error) {
-                    console.error("Error al recortar la imagen:", error);
-                    reject(error);
-                }
+                } catch (error) { reject(error); }
+            };
+            img.onerror = reject;
+            img.src = imageUrl;
+        });
+    }
+
+    // --- FUNCIÓN DE PRE-PROCESAMIENTO CON MEJORAS ---
+    async function preprocessImageForOCR(imageUrl) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = () => {
+                try {
+                    let src = cv.imread(img);
+                    let gray = new cv.Mat();
+                    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+                    // 1. Reducción de Ruido con Filtro Bilateral
+                    let denoised = new cv.Mat();
+                    cv.bilateralFilter(gray, denoised, 9, 75, 75, cv.BORDER_DEFAULT);
+
+                    // 2. Mejora de Contraste Local con CLAHE
+                    let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+                    let contrasted = new cv.Mat();
+                    clahe.apply(denoised, contrasted);
+                    clahe.delete();
+                    
+                    // 3. Aumento de Nitidez con Máscara de Enfoque
+                    let blurred = new cv.Mat();
+                    let sharpened = new cv.Mat();
+                    cv.GaussianBlur(contrasted, blurred, new cv.Size(0, 0), 3);
+                    cv.addWeighted(contrasted, 1.5, blurred, -0.5, 0, sharpened);
+                    
+                    const outputCanvas = document.createElement('canvas');
+                    cv.imshow(outputCanvas, sharpened);
+                    
+                    // Liberar memoria
+                    src.delete(); gray.delete(); denoised.delete(); contrasted.delete(); blurred.delete(); sharpened.delete();
+                    resolve(outputCanvas.toDataURL('image/jpeg'));
+                } catch (error) { reject(error); }
             };
             img.onerror = reject;
             img.src = imageUrl;
@@ -222,27 +232,28 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleAccept() {
         acceptButton.disabled = true;
         retryButton.disabled = true;
-
-        googleResultElement.textContent = 'Recortando y analizando...';
-        gptResultElement.textContent = 'Recortando y analizando...';
-
+        googleResultElement.textContent = 'Procesando...';
+        gptResultElement.textContent = 'Procesando...';
         previewContainer.style.display = 'none';
         liveContainer.style.display = 'flex';
         analyzeButton.textContent = 'Iniciar Análisis';
-        resultElement.textContent = 'Análisis en proceso...';
-
+        
         try {
+            resultElement.textContent = 'Recortando imagen...';
             const croppedImageDataUrl = await cropImageToRoi(capturedImageDataUrl);
 
+            resultElement.textContent = 'Mejorando calidad de imagen...';
+            const processedImageDataUrl = await preprocessImageForOCR(croppedImageDataUrl);
+
+            resultElement.textContent = 'Análisis en proceso...';
             await Promise.all([
-                enviarParaAnalisisGoogle(croppedImageDataUrl),
-                enviarParaAnalisisGPT(croppedImageDataUrl)
+                enviarParaAnalisisGoogle(processedImageDataUrl),
+                enviarParaAnalisisGPT(processedImageDataUrl)
             ]);
-            
             resultElement.textContent = 'Análisis completado.';
 
         } catch (error) {
-            resultElement.textContent = `Error durante el recorte: ${error.message}`;
+            resultElement.textContent = `Error en el procesamiento: ${error.message}`;
             console.error(error);
         } finally {
             acceptButton.disabled = false;
@@ -265,49 +276,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
         const base64ImageData = imageDataUrl.split(',')[1];
         const requestBody = { requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ] };
-        
         try {
             const response = await fetch(GOOGLE_VISION_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
             if (!response.ok) { const errorData = await response.json(); throw new Error(`Error de Google: ${errorData.error.message}`); }
             const result = await response.json();
             const detections = result.responses[0].textAnnotations;
-            if (detections && detections.length > 0) {
-                googleResultElement.textContent = detections[0].description;
-            } else {
-                googleResultElement.textContent = 'No se encontró texto.';
-            }
-        } catch (error) {
-            console.error('Error con Google Vision API:', error);
-            googleResultElement.textContent = `Error: ${error.message}`;
-        }
+            if (detections && detections.length > 0) { googleResultElement.textContent = detections[0].description; } 
+            else { googleResultElement.textContent = 'No se encontró texto.'; }
+        } catch (error) { console.error('Error con Google Vision API:', error); googleResultElement.textContent = `Error: ${error.message}`; }
     }
 
     async function enviarParaAnalisisGPT(imageDataUrl) {
         if (!imageDataUrl) return;
         const PROXY_URL = '/api/proxy-openai';
-
         try {
-            const response = await fetch(PROXY_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: imageDataUrl }) 
-            });
-
-            if (!response.ok) { 
-                const errorData = await response.json(); 
-                throw new Error(`Error del Proxy: ${errorData.error.message || JSON.stringify(errorData)}`); 
-            }
-
+            const response = await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: imageDataUrl }) });
+            if (!response.ok) { const errorData = await response.json(); throw new Error(`Error del Proxy: ${errorData.error.message || JSON.stringify(errorData)}`); }
             const result = await response.json();
-            if (result.choices && result.choices.length > 0) {
-                gptResultElement.textContent = result.choices[0].message.content;
-            } else {
-                gptResultElement.textContent = 'No se recibió una respuesta válida.';
-            }
-        } catch (error) {
-            console.error('Error al llamar al proxy de OpenAI:', error);
-            gptResultElement.textContent = `${error.message}`;
-        }
+            if (result.choices && result.choices.length > 0) { gptResultElement.textContent = result.choices[0].message.content; } 
+            else { gptResultElement.textContent = 'No se recibió una respuesta válida.'; }
+        } catch (error) { console.error('Error al llamar al proxy de OpenAI:', error); gptResultElement.textContent = `${error.message}`; }
     }
 
     // --- Carga de OpenCV ---
