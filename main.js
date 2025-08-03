@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const ANALYSIS_WIDTH = 320;
+    const ANALYSIS_WIDTH = 320; // Para el análisis en tiempo real (rápido)
+    const CAPTURE_WIDTH = 1280; // Para la foto final (alta calidad)
 
     // --- Elementos del DOM ---
     const liveContainer = document.getElementById('liveContainer');
@@ -10,13 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const retryButton = document.getElementById('retryButton');
     const analyzeButton = document.getElementById('analyzeButton');
     const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
+    const canvas = document.getElementById('canvas'); // Canvas de baja resolución para análisis
     const resultElement = document.getElementById('result');
     const codeResultElement = document.getElementById('codeResult');
-    const roiBox = document.getElementById('roiBox'); // Referencia al visor
+    const roiBox = document.getElementById('roiBox');
 
     let analysisInterval = null;
+    let capturedImageDataUrl = null; // <-- Variable para guardar la imagen de alta resolución
 
+    // (El resto de las funciones startApp, toggleAnalysis, startAnalysis, stopAnalysis no cambian)
     function startApp() {
         analyzeButton.disabled = false;
         analyzeButton.textContent = 'Iniciar Análisis';
@@ -50,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
         analyzeButton.textContent = 'Detener Análisis';
         codeResultElement.textContent = '';
         resultElement.textContent = 'Buscando una imagen nítida...';
-        roiBox.style.display = 'block'; // Muestra el visor
+        roiBox.style.display = 'block';
         analysisInterval = setInterval(analyzeAndHandleSharpness, 500);
     }
 
@@ -60,13 +63,14 @@ document.addEventListener('DOMContentLoaded', () => {
         analyzeButton.textContent = 'Iniciar Análisis';
         video.style.borderColor = '#ccc';
         resultElement.textContent = 'Análisis detenido.';
-        roiBox.style.display = 'none'; // Oculta el visor
+        roiBox.style.display = 'none';
     }
+
 
     function analyzeAndHandleSharpness() {
         if (video.readyState < 2) return;
 
-        // Dibuja el cuadro de video completo en el canvas
+        // Usa el canvas de BAJA resolución solo para el análisis
         const aspectRatio = video.videoHeight / video.videoWidth;
         canvas.width = ANALYSIS_WIDTH;
         canvas.height = ANALYSIS_WIDTH * aspectRatio;
@@ -74,53 +78,50 @@ document.addEventListener('DOMContentLoaded', () => {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         try {
+            // (La lógica de análisis con OpenCV sigue siendo la misma)
             let src = cv.imread(canvas);
             let matGray = new cv.Mat();
             let matLaplacian = new cv.Mat();
             let mean = new cv.Mat();
             let stdDev = new cv.Mat();
             
-            // --- NUEVA LÓGICA PARA RECORTAR LA IMAGEN (ROI) ---
-            // Define el tamaño del recorte (ROI). Usamos 250x150 como referencia.
-            const roiWidth = 250; 
-            const roiHeight = 150;
-            // Calcula las coordenadas para centrar el recorte en el canvas de análisis
+            const roiWidth = 250 * (ANALYSIS_WIDTH / video.videoWidth); 
+            const roiHeight = 150 * (ANALYSIS_WIDTH / video.videoWidth); 
             const x = (canvas.width - roiWidth) / 2;
             const y = (canvas.height - roiHeight) / 2;
 
-            // Asegúrate de que el recorte no se salga del canvas
             if (x < 0 || y < 0 || (x + roiWidth) > canvas.width || (y + roiHeight) > canvas.height) {
-                console.warn("El visor es más grande que el área de análisis. Analizando el cuadro completo.");
-                cv.cvtColor(src, matGray, cv.COLOR_RGBA2GRAY, 0); // Analiza la imagen completa como fallback
+                cv.cvtColor(src, matGray, cv.COLOR_RGBA2GRAY, 0);
             } else {
                 let rect = new cv.Rect(x, y, roiWidth, roiHeight);
-                let roi = src.roi(rect); // Crea una nueva Mat que es solo la región de interés
-                cv.cvtColor(roi, matGray, cv.COLOR_RGBA2GRAY, 0); // Convierte a gris solo el recorte
-                roi.delete(); // Libera la memoria del recorte
+                let roi = src.roi(rect);
+                cv.cvtColor(roi, matGray, cv.COLOR_RGBA2GRAY, 0);
+                roi.delete();
             }
-            // --- FIN DE LA LÓGICA DE RECORTE ---
 
-            // El resto del análisis se hace sobre 'matGray', que ahora es la imagen recortada y en gris
             cv.Laplacian(matGray, matLaplacian, cv.CV_64F, 1, 1, 0, cv.BORDER_DEFAULT);
             cv.meanStdDev(matLaplacian, mean, stdDev);
             let variance = stdDev.data64F[0] * stdDev.data64F[0];
-
-            const sharpnessThreshold = 100; // Puedes ajustar este umbral
+            const sharpnessThreshold = 100;
             resultElement.textContent = `Puntaje de nitidez: ${variance.toFixed(2)}`;
 
             if (variance > sharpnessThreshold) {
-                video.style.borderColor = 'green';
-                roiBox.style.borderColor = 'rgba(40, 167, 69, 0.9)'; // Borde del visor en verde
-                resultElement.style.color = 'green';
-                resultElement.textContent += ' (✅ Nítida - Capturada)';
-                
+                // --- CAMBIO PRINCIPAL ---
+                // ¡Disparador activado! Detiene el análisis y toma una foto en ALTA RESOLUCIÓN.
                 clearInterval(analysisInterval); 
                 analysisInterval = null;
-                showPreview();
+                
+                video.style.borderColor = 'green';
+                roiBox.style.borderColor = 'rgba(40, 167, 69, 0.9)';
+                resultElement.style.color = 'green';
+                resultElement.textContent += ' (✅ Nítida - ¡Capturada!)';
+
+                takeHighResPhotoAndShowPreview(); // Llama a la nueva función
+                // --- FIN DEL CAMBIO ---
 
             } else {
                 video.style.borderColor = 'red';
-                roiBox.style.borderColor = 'rgba(255, 255, 255, 0.9)'; // Borde del visor normal
+                roiBox.style.borderColor = 'rgba(255, 255, 255, 0.9)';
                 resultElement.style.color = 'red';
                 resultElement.textContent += ' (❌ Borrosa)';
             }
@@ -131,9 +132,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- ¡NUEVA FUNCIÓN! ---
+    function takeHighResPhotoAndShowPreview() {
+        // Crea un canvas temporal en memoria para la alta resolución
+        const highResCanvas = document.createElement('canvas');
+        const aspectRatio = video.videoHeight / video.videoWidth;
+        
+        highResCanvas.width = CAPTURE_WIDTH;
+        highResCanvas.height = CAPTURE_WIDTH * aspectRatio;
+        
+        const context = highResCanvas.getContext('2d');
+        // Dibuja la imagen del video en el canvas de alta resolución
+        context.drawImage(video, 0, 0, highResCanvas.width, highResCanvas.height);
+        
+        // Guarda la imagen de alta calidad (con compresión JPEG al 90%)
+        capturedImageDataUrl = highResCanvas.toDataURL('image/jpeg', 0.9);
+        
+        // Ahora muestra la previsualización
+        showPreview();
+    }
+
     function showPreview() {
-        roiBox.style.display = 'none'; // Oculta el visor en la vista previa
-        previewImage.src = canvas.toDataURL('image/jpeg');
+        roiBox.style.display = 'none';
+        // Usa la imagen de alta resolución que acabamos de guardar
+        previewImage.src = capturedImageDataUrl; 
         liveContainer.style.display = 'none';
         previewContainer.style.display = 'flex';
     }
@@ -148,16 +170,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleRetry() {
+        capturedImageDataUrl = null; // Limpia la imagen guardada
         previewContainer.style.display = 'none';
         liveContainer.style.display = 'flex';
         startAnalysis();
     }
 
-
     async function enviarParaAnalisis() {
-        const API_KEY = 'AIzaSyB1jlhNM7RSGwf_vfkJ0bJHo2ReTgYQiNw'; // <-- RECUERDA PONER TU CLAVE API
+        // Ya no necesita capturar la imagen, solo usar la que guardamos
+        if (!capturedImageDataUrl) {
+            console.error("No hay imagen capturada para enviar.");
+            return;
+        }
+
+        const API_KEY = 'TU_API_KEY_DE_GOOGLE_VISION';
         const GOOGLE_VISION_URL = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
-        const base64ImageData = canvas.toDataURL('image/jpeg').split(',')[1];
+        // Extrae los datos base64 de la URL de la imagen de alta resolución
+        const base64ImageData = capturedImageDataUrl.split(',')[1];
+        
         const requestBody = {
             requests: [ { image: { content: base64ImageData }, features: [ { type: 'TEXT_DETECTION' } ] } ],
         };
